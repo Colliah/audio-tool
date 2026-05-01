@@ -9,19 +9,26 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 export type TranscriptionSegment = {
-  id: string;
+  id: string | number;
   start: number;
   end: number;
   text: string;
-  confidence_score: number;
+  confidence: number;
 };
 
 type TranscriptionDisplayProps = {
   segments: TranscriptionSegment[];
   progress: number;
   isProcessing?: boolean;
-  onSegmentChange: (id: string, text: string) => void;
+  stats: { elapsed: number; eta: number };
+  onSegmentChange: (id: string | number, text: string) => void;
 };
+
+function formatDuration(totalSeconds: number) {
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = Math.floor(totalSeconds % 60);
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
 
 function formatTime(totalSeconds: number) {
   const seconds = Math.max(0, Math.floor(totalSeconds));
@@ -34,6 +41,7 @@ function formatTime(totalSeconds: number) {
 export function TranscriptionDisplay({
   segments,
   progress,
+  stats,
   isProcessing = false,
   onSegmentChange,
 }: TranscriptionDisplayProps) {
@@ -60,16 +68,30 @@ export function TranscriptionDisplay({
   }
 
   return (
-    <section className="flex min-h-[520px] flex-col border border-slate-700 bg-slate-800/60">
+    <section className="flex min-h-[520px] flex-col border border-slate-700 bg-slate-800/60 rounded-md">
       <div className="flex flex-col gap-3 border-b border-slate-700 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1">
           <div className="mb-2 flex items-center justify-between gap-3">
-            <h2 className="text-lg font-medium">Transcript</h2>
-            <span className="text-sm tabular-nums text-slate-300">
-              {Math.round(progress)}%
-            </span>
+            <h2 className="text-lg font-medium text-slate-100">Transcript</h2>
+            <div className="flex items-center space-x-4">
+              {isProcessing && stats.eta > 0 && (
+                <span className="text-sm text-slate-400">
+                  ETA:{" "}
+                  <span className="text-cyan-400 font-mono">
+                    {formatDuration(stats.eta)}
+                  </span>
+                </span>
+              )}
+              <span className="text-sm font-mono text-slate-300">
+                {Math.round(progress)}%
+              </span>
+            </div>
           </div>
-          <Progress value={progress} aria-label="Transcription progress" />
+          <Progress
+            value={progress}
+            aria-label="Transcription progress"
+            className="h-2"
+          />
         </div>
         <Button
           type="button"
@@ -77,8 +99,9 @@ export function TranscriptionDisplay({
           onClick={handleDownload}
           disabled={!sortedSegments.length}
           title="Download TXT"
+          className="ml-4"
         >
-          <Download className="h-4 w-4" aria-hidden />
+          <Download className="mr-2 h-4 w-4" aria-hidden />
           TXT
         </Button>
       </div>
@@ -87,31 +110,31 @@ export function TranscriptionDisplay({
         <div className="flex flex-col gap-3 p-4">
           {!sortedSegments.length ? (
             <div className="flex h-40 items-center justify-center text-sm text-slate-400">
-              {isProcessing ? "Dang nhan dien..." : "Chua co transcript"}
+              {isProcessing
+                ? "Đang nhận diện âm thanh..."
+                : "Chưa có transcript"}
             </div>
           ) : null}
 
           {sortedSegments.map((segment) => {
-            const lowConfidence = segment.confidence_score < 0.8;
+            const lowConfidence = segment.confidence < 0.8;
 
             return (
               <article
                 key={segment.id}
                 className={cn(
-                  "grid gap-3 border border-slate-700 bg-slate-900/50 p-3 sm:grid-cols-[140px_1fr]",
+                  "grid gap-3 border border-slate-700 bg-slate-900/50 p-3 sm:grid-cols-[140px_1fr] rounded transition-colors",
                   lowConfidence && "border-amber-500/40 bg-amber-900/30",
                 )}
               >
-                <div className="text-sm text-slate-300">
-                  <div className="font-medium tabular-nums">
+                <div className="text-sm text-slate-300 pt-2">
+                  <div className="font-mono tabular-nums">
                     {formatTime(segment.start)} - {formatTime(segment.end)}
                   </div>
-                  <div
-                    className={cn(
-                      "mt-1 tabular-nums",
-                      lowConfidence ? "text-amber-200" : "text-cyan-200",
-                    )}
-                  ></div>
+                  {/* Có thể hiển thị thêm % độ tự tin nếu bạn muốn, tôi ẩn đi cho giao diện sạch */}
+                  {/* <div className={cn("mt-1 text-xs", lowConfidence ? "text-amber-400" : "text-cyan-400")}>
+                    {Math.round(segment.confidence * 100)}% Match
+                  </div> */}
                 </div>
 
                 <Textarea
@@ -120,7 +143,8 @@ export function TranscriptionDisplay({
                     onSegmentChange(segment.id, event.target.value)
                   }
                   readOnly={true}
-                  className="min-h-12 resize-y"
+                  className="min-h-12 resize-y bg-slate-800/50 border-slate-700 text-slate-200 focus-visible:ring-cyan-500/50"
+                  placeholder="Đang dịch..."
                 />
               </article>
             );

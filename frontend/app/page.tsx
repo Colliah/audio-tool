@@ -23,11 +23,13 @@ type TranscribeJob = {
 export default function DashboardPage() {
   const queryClient = useQueryClient();
   const eventSourceRef = useRef<EventSource | null>(null);
+  const [stats, setStats] = useState({ elapsed: 0, eta: 0 });
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<
     "idle" | "uploading" | "processing" | "done" | "error"
   >("idle");
   const [error, setError] = useState<string | null>(null);
+  
   const { data: segments = [] } = useQuery({
     queryKey: SEGMENTS_QUERY_KEY,
     queryFn: async () => [] as TranscriptionSegment[],
@@ -55,6 +57,7 @@ export default function DashboardPage() {
       eventSourceRef.current?.close();
       queryClient.setQueryData<TranscriptionSegment[]>(SEGMENTS_QUERY_KEY, []);
       setProgress(0);
+      setStats({ elapsed: 0, eta: 0 });
       setStatus("uploading");
       setError(null);
     },
@@ -66,10 +69,27 @@ export default function DashboardPage() {
       const source = new EventSource(eventsUrl);
       eventSourceRef.current = source;
 
+      // 1. GỘP CHUNG XỬ LÝ ETA VÀ PROGRESS VÀO EVENT "segment"
       source.addEventListener("segment", (event) => {
-        const segment = JSON.parse(
-          (event as MessageEvent).data,
-        ) as TranscriptionSegment;
+        const payload = JSON.parse((event as MessageEvent).data);
+
+        // Cập nhật UI Progress và ETA ngay khi có chunk mới
+        if (payload.progress !== undefined) {
+          setProgress(payload.progress);
+        }
+        if (payload.eta !== undefined) {
+          setStats((prev) => ({ ...prev, eta: payload.eta }));
+        }
+
+        // Tạo object segment chuẩn để nhét vào Query Data
+        const segment = {
+          id: payload.id,
+          start: payload.start,
+          end: payload.end,
+          text: payload.text,
+          confidence: payload.confidence,
+        } as TranscriptionSegment;
+
         queryClient.setQueryData<TranscriptionSegment[]>(
           SEGMENTS_QUERY_KEY,
           (current = []) => {
@@ -80,15 +100,10 @@ export default function DashboardPage() {
         );
       });
 
-      source.addEventListener("progress", (event) => {
-        const payload = JSON.parse((event as MessageEvent).data) as {
-          value: number;
-        };
-        setProgress(payload.value);
-      });
-
+      // 2. GIỮ LẠI LẮNG NGHE SỰ KIỆN DONE VÀ LỖI
       source.addEventListener("done", () => {
         setProgress(100);
+        setStats((prev) => ({ ...prev, eta: 0 }));
         setStatus("done");
         source.close();
       });
@@ -103,7 +118,7 @@ export default function DashboardPage() {
       });
 
       source.onerror = () => {
-        setError("Mat ket noi toi SSE stream.");
+        setError("Mất kết nối tới SSE stream.");
         setStatus("error");
         source.close();
       };
@@ -140,7 +155,7 @@ export default function DashboardPage() {
     return () => eventSourceRef.current?.close();
   }, []);
 
-  function handleSegmentChange(id: string, text: string) {
+  function handleSegmentChange(id: string | number, text: string) {
     queryClient.setQueryData<TranscriptionSegment[]>(
       SEGMENTS_QUERY_KEY,
       (current = []) =>
@@ -185,6 +200,7 @@ export default function DashboardPage() {
           progress={progress}
           isProcessing={status === "uploading" || status === "processing"}
           onSegmentChange={handleSegmentChange}
+          stats={stats}
         />
       </div>
     </main>
