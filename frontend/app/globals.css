@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    --muted: 215 25% 18%;
+    --muted-foreground: 215 20% 70%;
+    --accent: 196 80% 45%;
+    --accent-foreground: 210 40% 98%;
+    --primary: 173 80% 40%;
+    --primary-foreground: 222 47% 11%;
+    --border: 215 25% 27%;
+    --input: 215 25% 27%;
+    --ring: 173 80% 45%;
+  }
+
+  body {
+    @apply bg-slate-900 text-slate-50;
+  }
+}

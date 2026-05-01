@@ -1,0 +1,6 @@
+PS D:\Projects\audioWeb\backend> Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+PS D:\Projects\audioWeb\backend> .\.venv\Scripts\Activate.ps1 
+
+uvicorn app.main:app --host 127.0.0.1 --port 8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+.\.venv\Scripts\uvicorn.exe app.main:app --reload --host 127.0.0.1 --port 8000
